@@ -3,9 +3,15 @@
 const Post = use('App/Models/Post')
 
 class PostController {
-  async index ({ request }) {
-    const posts = await Post.all()
+  async index ({ request, auth }) {
+    const user = await auth.getUser()
 
+    if (await user.can('read_private_post')) {
+      const posts = await Post.all()
+      return posts
+    }
+
+    const posts = await Post.query().where({type: 'public'}).fetch()
     return posts
   }
 
@@ -17,10 +23,22 @@ class PostController {
     return post
   }
 
-  async show ({ params }) {
+  async show ({ params, response, auth }) {
     const post = await Post.findOrFail(params.id)
 
-    return post
+    if (post.type === 'public') {
+      return post
+    }
+
+    if (await auth.user.can('read_private_post')) {
+      return post
+    }
+
+    return response.status(401).send({
+      error: {
+        message: 'você não tem permissão'
+      }
+    })
   }
 
   async update ({ params, request, response }) {
